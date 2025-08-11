@@ -37,5 +37,5 @@ class chatServer{
         chatRoom room_;
         void do_acceptor();
 public:
-    chatServer(asio::io_context& io_context, uint port) : acceptor_(io_context, tcp::endpoint(tcp::v4(), port)) {do_acceptor(); }
+    chatServer(asio::io_context& io_context, int port) : acceptor_(io_context, port) {do_acceptor(); }
 };

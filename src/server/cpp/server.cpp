@@ -64,7 +64,7 @@ void chatRoom::deliver(std::string_view message){
 
         while(recent_messages_.size() > max_recent_msgs)
         {
-            recent_messages_.pop_back();
+            recent_messages_.pop_front();
         }
 
         for(const auto& participant : participants_){
