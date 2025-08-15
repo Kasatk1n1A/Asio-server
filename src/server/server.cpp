@@ -29,8 +29,6 @@ public:
         }
     }
 
-    const std::string& get_login() const { return login_; }
-
 private:
     void request_login()
     {
@@ -44,9 +42,7 @@ private:
                 }
                 else
                 {
-                    auto it = std::find(sessions_.begin(), sessions_.end(), self);
-                    if (it != sessions_.end())
-                        sessions_.erase(it);
+                    remove_session(self);
                 }
             });
     }
@@ -59,24 +55,25 @@ private:
             {
                 if(!error) 
                 {
-                   
-                    login_ = login_buffer_.substr(0, length);
+                    login_ = login_buffer_.substr(0, length - 1);
                     login_buffer_.clear();
-
-                    
+                    login_.erase(std::remove(login_.begin(), login_.end(), ' '), login_.end());
+                    // надо добавить обработку пустой строки и повторяющихся логинов
+                    if(!login_.empty()) {
                     std::string welcome_msg = "Welcome, " + login_ + "!\n";
-
                     deliver(welcome_msg);
-
+                    
                     std::cout << login_ << " connected" << std::endl;
-
                     read_message();
+                    }
+                    else
+                        {
+                            socket_.close();
+                        }
                 }
                 else
                 {
-                    auto it = std::find(sessions_.begin(), sessions_.end(), self);
-                    if (it != sessions_.end())
-                        sessions_.erase(it);
+                    remove_session(self);
                 }
             });
     }
@@ -89,26 +86,27 @@ private:
             {
                 if (!ec)
                 {
-                    
-                    std::string message = login_ + ": " + read_buffer_.substr(0, length);
+                    std::string msg = read_buffer_.substr(0, length - 1);
                     read_buffer_.erase(0, length);
-
-                    // Рассылаем всем клиентам
-                    for (auto& session : sessions_)
+                    
+                    std::string message = login_ + ": " + msg + "\n";
+                    
+                    // Создаем копию списка сессий для безопасного доступа
+                    auto sessions_copy = sessions_;
+                    for (auto& session : sessions_copy)
                     {
-                        session->deliver(message);
+                        if (session.get() != this && session->socket_.is_open())
+                        {
+                            session->deliver(message);
+                        }
                     }
 
-                    // Читаем следующее сообщение
                     read_message();
                 }
                 else
                 {
-                    
                     std::cout << login_ << " disconnected" << std::endl;
-                    auto it = std::find(sessions_.begin(), sessions_.end(), self);
-                    if (it != sessions_.end())
-                        sessions_.erase(it);
+                    remove_session(self);
                 }
             });
     }
@@ -117,7 +115,7 @@ private:
     {
         auto self(shared_from_this());
         boost::asio::async_write(socket_, boost::asio::buffer(write_msgs_.front()),
-            [this, self](boost::system::error_code ec, std::size_t /*length*/)
+            [this, self](boost::system::error_code ec, std::size_t)
             {
                 if (!ec)
                 {
@@ -129,12 +127,18 @@ private:
                 }
                 else
                 {
-                    // Удаляем сессию при ошибке
-                    auto it = std::find(sessions_.begin(), sessions_.end(), self);
-                    if (it != sessions_.end())
-                        sessions_.erase(it);
+                    remove_session(self);
                 }
             });
+    }
+
+    void remove_session(std::shared_ptr<ChatSession> session)
+    {
+        auto it = std::find(sessions_.begin(), sessions_.end(), session);
+        if (it != sessions_.end())
+        {
+            sessions_.erase(it);
+        }
     }
 
     tcp::socket socket_;
@@ -162,6 +166,7 @@ private:
             {
                 if (!ec)
                 {
+                    std::lock_guard<std::mutex> lock(sessions_mutex_);
                     auto session = std::make_shared<ChatSession>(
                         std::move(socket), sessions_);
                     sessions_.push_back(session);
@@ -174,9 +179,10 @@ private:
 
     tcp::acceptor acceptor_;
     std::vector<std::shared_ptr<ChatSession>> sessions_;
+    std::mutex sessions_mutex_;
 };
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     try
     {
@@ -189,7 +195,8 @@ int main(int argc, char* argv[])
         boost::asio::io_context io_context;
         ChatServer server(io_context, std::atoi(argv[1]));
 
-        std::thread t([&io_context](){ io_context.run(); });
+        std::thread t([&io_context]()
+                      { io_context.run(); });
 
         std::cout << "Server running on port " << argv[1] << std::endl;
         std::cout << "Press Enter to exit..." << std::endl;
@@ -198,7 +205,7 @@ int main(int argc, char* argv[])
         io_context.stop();
         t.join();
     }
-    catch (std::exception& e)
+    catch (std::exception &e)
     {
         std::cerr << "Exception: " << e.what() << "\n";
     }

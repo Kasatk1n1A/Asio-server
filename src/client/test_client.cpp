@@ -11,95 +11,74 @@ private:
     tcp::socket socket;
     std::string read_buffer;
     std::string login_;
+    std::atomic<bool> running_{true};
 
-    void handle_login(){
-        boost::asio::async_read_until(socket, boost::asio::dynamic_buffer(read_buffer), '\n', [this](boost::system::error_code error, std::size_t length){
-            if(!error){
+    void handle_initial_prompt() {
+        boost::asio::async_read_until(socket, boost::asio::dynamic_buffer(read_buffer), ':', 
+            [this](boost::system::error_code error, std::size_t length) {
+                if (!error) {
+                    std::cout << read_buffer.substr(0, length);
+                    read_buffer.erase(0, length);
                     
-
-                   
-                    std::cout << "Enter your login: ";
-                    std::getline(std::cin, login_); 
-                    login_ += '\n';
-
+                    std::getline(std::cin, login_);
                     
-                    boost::asio::async_write(socket, boost::asio::buffer(login_),
-                        [this](boost::system::error_code ec, std::size_t)
-                        {
-                            if (!ec)
-                            {
-                                login_.erase(login_.size() - 1); 
-                                std::cout << "Logged in as: " << login_ << std::endl;
-                                read(); 
-                                write(); 
-                            }
-                            else
-                            {
-                                std::cerr << "Login error: " << ec.message() << "\n";
-                                socket.close();
+                    boost::asio::async_write(socket, boost::asio::buffer(login_ + "\n"),
+                        [this](boost::system::error_code ec, std::size_t) {
+                            if (!ec) {
+                            
+                                read_welcome();
                             }
                         });
-                }
-                else
-                {
-                    std::cerr << "Login error: " << error.message() << "\n";
-                    socket.close();
-                }
-           
-        });
-    }
-    void read()
-    {
-        boost::asio::async_read_until(socket, boost::asio::dynamic_buffer(read_buffer), '\n',
-            [this](boost::system::error_code ec, std::size_t length)
-            {
-                if (!ec)
-                {   
-                    std::cout << "Received: " << read_buffer.substr(0, length);
-                    read_buffer.erase(0, length);
-                    read(); // Continue reading
-                }
-                else
-                {   
-                    std::cerr << "Read error: " << ec.message() << "\n";
-                    socket.close();
                 }
             });
     }
 
-    void write()
-    {
-        boost::asio::post([this]()
-        {
-            std::string write_buffer;
-            std::getline(std::cin, write_buffer);
-            
-            write_buffer += '\n'; // Add delimiter
-            
-            boost::system::error_code ec;
-            boost::asio::async_write(socket, boost::asio::buffer(write_buffer), 
-                [this](boost::system::error_code ec, std::size_t length)
-                {
-                    if (!ec)
-                        write();
-                    else
-                    {
-                        std::cerr << "Write error: " << ec.message() << "\n";
-                        socket.close();
-                    }
-                });
+    void read_welcome() {
+        boost::asio::async_read_until(socket, boost::asio::dynamic_buffer(read_buffer), '\n',
+            [this](boost::system::error_code ec, std::size_t length) {
+                if (!ec) {
+                    std::cout << read_buffer.substr(1, length);
+                    read_buffer.erase(0, length);
+                    start_io();
+                }
+            });
+    }
+
+    void start_io() {
+        std::thread read_thread([this]() {
+            while (running_) {
+                boost::asio::streambuf buf;
+                boost::asio::read_until(socket, buf, '\n');
+                std::cout << &buf;
+            }
         });
+
+        std::string message;
+        while (running_ && std::getline(std::cin, message)) {
+            if (message == "/quit") {
+                running_ = false;
+                break;
+            }
+            message += '\n';
+            boost::asio::write(socket, boost::asio::buffer(message));
+        }
+
+        socket.close();
+        if (read_thread.joinable()) {
+            read_thread.join();
+        }
     }
 
 public:
     Client(boost::asio::io_context& io_context, tcp::socket&& sock)
         : socket(std::move(sock))
     {
-        handle_login();
-        }
+        handle_initial_prompt();
+    }
 
     ~Client()
     {
+        running_ = false;
         socket.close();
     }
 };
