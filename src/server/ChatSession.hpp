@@ -4,6 +4,8 @@
 #include <memory>
 #include <deque>
 #include <boost/asio.hpp>
+#include<unordered_set>
+
 
 using boost::asio::ip::tcp;
 
@@ -17,9 +19,16 @@ public:
     {
         authorization();
     }
-
+    ~ChatSession(){
+        std::cout << User_login + " disconnected\n";
+        socket_.close();
+    }
     void deliver(const std::string& message);
 
+    std::string getLogin() const noexcept(true){
+        return User_login;
+    }
+    
 private:
     void read_message();
     void write_message();
@@ -27,6 +36,7 @@ private:
     void read_login();
     void read_password();
     void send_confirm_login();
+    void send_login_taken();
     void send_confirm_password();
 
     tcp::socket socket_;

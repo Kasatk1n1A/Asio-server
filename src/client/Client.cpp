@@ -45,21 +45,20 @@ void Client::write()
     });
 }
 
-void Client::input_login_and_password()
-{
-    //ожидание ввода логина и пароля пользователя, 
-    //если логин и пароль не должны быть больше 32 символов и не должны быть пустыми
+void Client::input_login(){
     do  
     {
         User_login.erase(User_login.begin(), User_login.end());
-        std::cout << "Введите логин: ";
+        std::cout << "Enter login: ";
         std::getline(std::cin, User_login);
     } while (User_login.size() == 0 ||  User_login.size() > 32);
-    
-    do
+}
+
+void Client::input_password(){
+ do
     {
         User_password.erase(User_password.begin(), User_password.end());
-        std::cout << "Введите пароль: ";
+        std::cout << "Enter password: ";
         std::getline(std::cin, User_password);
     } while (User_password.size() == 0 ||  User_password.size() > 32);
 }
@@ -88,33 +87,35 @@ void Client::send_login()
         });
 }
 
-//Ожидание подтверждения логина
 void Client::wait_confirm_login()
 {
     boost::asio::async_read_until(socket, boost::asio::dynamic_buffer(read_buffer), '\n',
     [this](boost::system::error_code ec, std::size_t length)
     {
         if (!ec)
-        {
-            if (read_buffer == "All good\n")
+        {   
+            std::string response = read_buffer.substr(0, length);
+            read_buffer.clear();
+            
+            if (response == "LOGIN_TAKEN\n")
             {
-                read_buffer.erase(0, length);
+                std::cout << "This login is already taken. Please choose another one.\n";
+                input_login();
+                // Отправляем новый логин и снова ждем подтверждения
+                send_login();
+            }
+            else if (response == "LOGIN_OK\n")  
+            {   
+                input_password();
                 send_password();
-            }
-            else if (read_buffer == "ERROR:LOGIN_TAKEN\n")
-            {
-                read_buffer.erase(0, length);
-                std::cerr << "Login is already taken" << std::endl;
-            }
+            }                
         }
         else
         {
-            std::cerr << "Read confirm error: " << ec.message() << "\n";
             socket.close();
         }
     });
 }
-
 //Ожидание подтверждения пароля (пока не использовано)
 void Client::wait_confirm_password()
 {
@@ -146,7 +147,7 @@ void Client::send_password()
         {
             if (!ec)
             {
-                std::cout << "Auth success" << std::endl;
+                
                 // Запускаем чтение в основном потоке io_context
                 read();
                 // Запускаем запись в отдельном потоке

@@ -15,9 +15,11 @@ private:
     std::string User_login;
     std::string User_password;
 
+    
+    void input_login();
+    void input_password();
     void read();
     void write();
-    void input_login_and_password();
     void send_login_and_password();
     void send_login();
     void send_password();
@@ -28,11 +30,13 @@ public:
     Client(boost::asio::io_context& io_context, tcp::socket&& sock)
         : socket(std::move(sock))
     {
-        input_login_and_password();
+        input_login();
 
         send_login_and_password();
     }
 
     ~Client()
-    {socket.close();}
+    {
+        socket.close();
+    }
 };

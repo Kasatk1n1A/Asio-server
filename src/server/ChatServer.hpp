@@ -6,7 +6,10 @@
 #include <boost/asio.hpp>
 #include "ChatSession.hpp"
 
+
 using boost::asio::ip::tcp;
+
+
 
 class ChatServer
 {
@@ -28,6 +31,7 @@ private:
                     auto session = std::make_shared<ChatSession>(std::move(socket), sessions_);
                     sessions_.push_back(session);
                     session->start();
+                    
                 }
 
                 accept_connection();
@@ -38,4 +42,5 @@ private:
 
     tcp::acceptor acceptor_;
     std::vector<std::shared_ptr<ChatSession>> sessions_;
+    
 };
