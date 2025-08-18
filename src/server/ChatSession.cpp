@@ -227,8 +227,6 @@ void ChatSession::read_login() {
         });
 }
 
-
-
 void ChatSession::send_confirm_password()
 {
     auto self(shared_from_this());
@@ -263,7 +261,8 @@ void ChatSession::read_new_password() {
         });
 }
 
-void ChatSession::read_password() {
+void ChatSession::read_password() 
+{
     auto self(shared_from_this());
 
     boost::asio::async_read_until(socket_, boost::asio::dynamic_buffer(read_buffer_), '\n',

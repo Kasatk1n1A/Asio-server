@@ -43,4 +43,9 @@ private:
     tcp::acceptor acceptor_;
     std::vector<std::shared_ptr<ChatSession>> sessions_;
     
+    std::unordered_set<std::string> logins_;
+    std::unordered_map<std::string, std::shared_ptr<ChatRoom>> Rooms_list;
+    std::unordered_map<std::string, std::string> registered_users_; // login -> password
+    std::unordered_set<std::string> active_users_; // currently logged in
+    
 };

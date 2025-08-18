@@ -18,5 +18,6 @@ public:
 
 private:
     std::string room_name;
+    std::string room_password;
     std::unordered_map<std::string, std::shared_ptr<ChatSession>> sessions_;
 };
